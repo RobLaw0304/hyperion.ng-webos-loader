@@ -166,7 +166,7 @@ static bool power_callback(LSHandle* sh __attribute__((unused)), LSMessage* msg,
         j_release(&parsed);
         return true;
     }
-
+    
     jvalue_ref state_ref = jobject_get(parsed, j_cstr_to_buffer("state"));
     if (!jis_valid(state_ref)) {
         DBG("power_callback: luna-reply does not contain 'state'");
@@ -174,22 +174,35 @@ static bool power_callback(LSHandle* sh __attribute__((unused)), LSMessage* msg,
         return true;
     }
 
+    jvalue_ref processing_ref = jobject_get(parsed, j_cstr_to_buffer("processing"));
+    if (!jis_valid(processing_ref)) {
+        DBG("power_callback: luna-reply does not contain 'processing'");
+        j_release(&parsed);
+        return true;
+    }
+    j_release(&parsed);
+
     raw_buffer state_buf = jstring_get(state_ref);
-    const char* state_str = state_buf.m_str;
+    raw_buffer processing_buf = jstring_get(processing_ref);
+    const char* processing_str = processing_buf.m_str;
     bool processing = jobject_containskey(parsed, j_cstr_to_buffer("processing"));
     bool power_active = strcmp(state_str, "Active") == 0 && !processing;
     bool power_active_standby = (strcmp(state_str, "Active Standby") == 0 || strcmp(state_str, "Power Off") == 0) && !processing;
+    bool power_request_power_off = (strcmp(processing_str, "Request Power Off") == 0);
+    bool power_request_active_standby = (strcmp(processing_str, "Request Active Standby") == 0);
+    bool power_request_suspend = (strcmp(processing_str, "Request Suspend") == 0);
     if (!is_running(service->daemon_pid) && power_active && service->power_paused) {
         INFO("Resuming service after power pause");
         service->power_paused = false;
         daemon_start(service);
-    } else if (is_running(service->daemon_pid) && power_active_standby && !service->power_paused) {
+    } else if (is_running(service->daemon_pid) && (power_active_standby || power_request_power_off || power_request_active_standby || power_request_suspend) && !service->power_paused) {
         INFO("Shutting down service due to power event...");
-        service->power_paused = true;
         daemon_stop(service);
+        service->power_paused = true;
     }
 
     jstring_free_buffer(state_buf);
+    jstring_free_buffer(processing_buf);
     j_release(&parsed);
 
     return true;
