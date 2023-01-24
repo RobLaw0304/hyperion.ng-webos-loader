@@ -184,6 +184,7 @@ static bool power_callback(LSHandle* sh __attribute__((unused)), LSMessage* msg,
 
     raw_buffer state_buf = jstring_get(state_ref);
     raw_buffer processing_buf = jstring_get(processing_ref);
+    const char* state_str = state_buf.m_str;
     const char* processing_str = processing_buf.m_str;
     bool processing = jobject_containskey(parsed, j_cstr_to_buffer("processing"));
     bool power_active = strcmp(state_str, "Active") == 0 && !processing;
